@@ -13,7 +13,6 @@ AudioDeviceModuleWrapper::AudioDeviceModuleWrapper() :
 
 AudioDeviceModuleWrapper::~AudioDeviceModuleWrapper()
 {
-	delete &_critSect;
 }
 
 

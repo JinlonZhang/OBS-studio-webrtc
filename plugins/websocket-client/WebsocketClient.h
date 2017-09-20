@@ -20,9 +20,12 @@ public:
 		virtual void onConnected() = 0;
 		virtual void onLogged(int code) = 0;
 		virtual void onLoggedError(int code) = 0;
+		virtual void onLoggedOut() = 0;
 		virtual void onOpened(const std::string &sdp) = 0;
 		virtual void onOpenedError(int code) = 0;
 		virtual void onDisconnected() = 0;
+
+
 	};
 public:
 	virtual bool connect(std::string url, std::string room, std::string username, std::string token, Listener* listener) = 0;

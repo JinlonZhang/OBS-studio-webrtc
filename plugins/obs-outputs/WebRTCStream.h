@@ -57,9 +57,11 @@ public:
 	virtual void onConnected();
 	virtual void onLogged(int code);
 	virtual void onLoggedError(int code);
+	virtual void onLoggedOut();
 	virtual void onOpened(const std::string &sdp);
 	virtual void onOpenedError(int code);
 	virtual void onDisconnected();
+
 
 	//
 	// PeerConnectionObserver implementation.
@@ -105,7 +107,7 @@ private:
 	//Websocket client
 	WebsocketClient* client;
 	//Audio Wrapper
-	AudioDeviceModuleWrapper adm;
+	rtc::scoped_refptr<AudioDeviceModuleWrapper> adm;
 	//Video Wrappers
 	webrtc::VideoCaptureCapability videoCaptureCapability;
 	rtc::scoped_refptr<VideoCapture> videoCapture;

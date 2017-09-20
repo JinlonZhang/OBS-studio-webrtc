@@ -42,7 +42,7 @@ WebRTCStream::WebRTCStream(obs_output_t * output)
     this->output = output;
     this->client = NULL;
     //Block adm
-    adm.AddRef();
+    adm = new AudioDeviceModuleWrapper();
     
     //Network thread
     network = rtc::Thread::CreateWithSocketServer();
@@ -62,7 +62,7 @@ WebRTCStream::WebRTCStream(obs_output_t * output)
                                                   network.get(),
                                                   worker.get(),
                                                   signaling.get(),
-                                                  &adm,
+                                                  adm,
                                                   nullptr,
                                                   nullptr
                                                   );
@@ -83,17 +83,24 @@ WebRTCStream::~WebRTCStream()
 {
     stop();
     //Free factories first
+    if (pc.get())
+        pc->Close();
+    //Release all objects before closing threads
     pc = NULL;
     factory = NULL;
     videoCapture = NULL;
-    //Stop all thread
-    if (!network->IsCurrent())		network->Stop();
-    if (!worker->IsCurrent())		worker->Stop();
-    if (!signaling->IsCurrent())	signaling->Stop();
-    //Release
-    network.release();
-    worker.release();
-    signaling.release();
+    adm = NULL;
+    //Stop all threads
+    if (!network->IsCurrent())
+        network->Stop();
+    if (!worker->IsCurrent())       
+        worker->Stop();
+    if (!signaling->IsCurrent())    
+        signaling->Stop();
+    //Delete client just in case
+    if (client)
+        delete(client);
+
     
 }
 
@@ -220,6 +227,7 @@ void WebRTCStream::OnFailure(const std::string & error)
     warn("Error [%s]", error.c_str());
     //Stop
     stop();
+    client->disconnect(true);
     //Disconnect
     obs_output_signal_stop(output, OBS_OUTPUT_ERROR);
 }
@@ -251,18 +259,15 @@ bool WebRTCStream::stop()
     old->Close();
     //Check client
     if (client)
-    {
-        //Disconnect client
-        client->disconnect(true);
-        //Delete client
-        delete(client);
-        //NUll it
-        client = NULL;
-    }
-    //Send end event
-    obs_output_end_data_capture(output);
+        //Log out
+        client->logout();
+    else
+        //Send end event
+        obs_output_end_data_capture(output);
+    //Done
     return true;
 }
+
 
 void WebRTCStream::onConnected()
 {
@@ -315,16 +320,61 @@ void WebRTCStream::onOpenedError(int code)
 {
     //LOG
     error("onOpenedError [code:%d]",code);
-    //Disconnect, this will call stop on main thread
-    obs_output_signal_stop(output, OBS_OUTPUT_ERROR);
+    //Disconnect on different thread
+    std::thread async([this](...) {
+        //Disconnect
+        client->disconnect(true);
+        //delete client
+        delete(client);
+        //NULL it
+        client = NULL;
+        //Disconnect, this will call stop on main thread
+        obs_output_signal_stop(output, OBS_OUTPUT_ERROR);
+    });
+    //Detach
+    async.detach();
+    
 }
+
+
 
 void WebRTCStream::onDisconnected()
 {
     //LOG
     info("onDisconnected");
-    //Disconnect, this will call stop on main thread
-    obs_output_signal_stop(output, OBS_OUTPUT_ERROR);
+    //Disconnect on different thread
+    std::thread async([this](...) {
+        //Disconnect
+        client->disconnect(true);
+        //delete client
+        delete(client);
+        //NULL it
+        client = NULL;
+        //Disconnect, this will call stop on main thread
+        obs_output_signal_stop(output, OBS_OUTPUT_ERROR);
+    });
+    //Detach
+    async.detach();
+}
+
+
+
+
+void WebRTCStream::onLoggedOut()
+{
+    //Disconnect on different thread
+    std::thread async([this](...) {
+        //Disconnect
+        client->disconnect(true);
+        //delete client
+        delete(client);
+        //NULL it
+        client = NULL;
+        //Send end event
+        obs_output_end_data_capture(output);
+    });
+
+    async.detach();
 }
 
 
